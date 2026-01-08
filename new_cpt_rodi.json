@@ -1,0 +1,424 @@
+{
+  "ruleChain": {
+    "name": "New CPT RODI",
+    "type": "CORE",
+    "firstRuleNodeId": null,
+    "root": false,
+    "debugMode": true,
+    "configuration": null,
+    "additionalInfo": {
+      "description": ""
+    }
+  },
+  "metadata": {
+    "version": 4,
+    "firstNodeIndex": 1,
+    "nodes": [
+      {
+        "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
+        "name": "IEEE754 Hex to Float Converter",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "function swap(val) {\r\n    return ((val & 0xFFFF) << 16) | ((val >> 16) & 0xFFFF);\r\n}\r\n\r\nfunction IEEE754converter(val) {\r\n    var intval = val;\r\n    var fval = 0.0;\r\n    var x;//exponent\r\n    var m;//mantissa\r\n    var s;//sign\r\n    s = (intval & 0x80000000)?-1:1;\r\n    x = ((intval >> 23) & 0xFF);\r\n    m = (intval & 0x7FFFFF);\r\n    switch(x) {\r\n        case 0:\r\n            //zero, do nothing, ignore negative zero and subnormals\r\n            break;\r\n        case 0xFF:\r\n            if (m) fval = NaN;\r\n            else if (s > 0) fval = Number.POSITIVE_INFINITY;\r\n            else fval = Number.NEGATIVE_INFINITY;\r\n            break;\r\n        default:\r\n            x -= 127;\r\n            m += 0x800000;\r\n            fval = s * (m / 8388608.0) * Math.pow(2, x);\r\n            break;\r\n    }\r\n    return fval.toFixed(2);\r\n}\r\n\r\n\r\nif (typeof msg.amp1 !== 'undefined') {\r\n    var i2 = IEEE754converter(msg.amp1);\r\n    msg[\"Current 1 (A)\"] = parseFloat(i2);\r\n}\r\nif (typeof msg.amp2 !== 'undefined') {\r\n    var i3 = IEEE754converter(msg.amp2);\r\n    msg[\"Current 2 (A)\"] = parseFloat(i3);\r\n}\r\nif (typeof msg.amp3 !== 'undefined') {\r\n    var i2 = IEEE754converter(msg.amp3);\r\n    msg[\"Current 3 (A)\"] = parseFloat(i2);\r\n}\r\n\r\n\r\nif (typeof msg.temp1 !== 'undefined') {\r\n    var i3 = IEEE754converter(msg.temp1);\r\n    msg[\"Temp 1\"] = parseFloat(i3);\r\n}\r\nif (typeof msg.temp2 !== 'undefined') {\r\n    var i3 = IEEE754converter(msg.temp2);\r\n    msg[\"Temp 2\"] = parseFloat(i3);\r\n}\r\nif (typeof msg.temp3 !== 'undefined') {\r\n    var i3 = IEEE754converter(msg.temp3);\r\n    msg[\"Temp 3\"] = parseFloat(i3);\r\n}\r\n\r\nif (typeof msg.read1 !== 'undefined') {\r\n    var i3 = IEEE754converter(msg.read1);\r\n    msg[\"RO Feed (uS)\"] = parseFloat(i3);\r\n}\r\nif (typeof msg.read2 !== 'undefined') {\r\n    var i3 = IEEE754converter(msg.read2);\r\n    msg[\"RO Product (uS)\"] = parseFloat(i3);\r\n}\r\nif (typeof msg.read3 !== 'undefined') {\r\n    var i3 = IEEE754converter(msg.read3);\r\n    msg[\"DI Supply (M ohm)\"] = parseFloat(i3);\r\n}\r\n\r\n\r\nreturn {msg: msg, metadata: metadata, msgType: msgType};",
+          "tbelScript": null
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 692,
+          "layoutY": 152
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.filter.TbMsgTypeSwitchNode",
+        "name": "Message Type Switch",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "version": 0
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 357,
+          "layoutY": 150
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.telemetry.TbMsgAttributesNode",
+        "name": "Save Attributes",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 2,
+        "configuration": {
+          "scope": "CLIENT_SCOPE",
+          "notifyDevice": false,
+          "sendAttributesUpdatedNotification": false,
+          "updateAttributesOnlyOnValueChange": false
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 730,
+          "layoutY": 39
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.action.TbCreateAlarmNode",
+        "name": "Create Inactivity Alarm",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "TBEL",
+          "alarmDetailsBuildJs": "var details = {};\nif (metadata.prevAlarmDetails) {\n    details = JSON.parse(metadata.prevAlarmDetails);\n    //remove prevAlarmDetails from metadata\n    delete metadata.prevAlarmDetails;\n    //now metadata is the same as it comes IN this rule node\n}\n\n\nreturn details;",
+          "alarmDetailsBuildTbel": "var details = {};\nif (metadata.prevAlarmDetails != null) {\n    details = JSON.parse(metadata.prevAlarmDetails);\n    //remove prevAlarmDetails from metadata\n    metadata.remove('prevAlarmDetails');\n    //now metadata is the same as it comes IN this rule node\n}\n\n\nreturn details;",
+          "useMessageAlarmData": false,
+          "overwriteAlarmDetails": false,
+          "alarmType": "Inactivity Timeout",
+          "severity": "CRITICAL",
+          "propagate": false,
+          "relationTypes": [],
+          "propagateToOwner": false,
+          "propagateToOwnerHierarchy": false,
+          "propagateToTenant": false,
+          "dynamicSeverity": false
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 642,
+          "layoutY": 400
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.mail.TbMsgToEmailNode",
+        "name": "Inactivity Email",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "fromTemplate": "sqcmboard@gmail.com",
+          "toTemplate": "sqcmboard@gmail.com",
+          "ccTemplate": "",
+          "bccTemplate": "roslee@mimos.my, pannir@mimos.my, pannirk@gmail.com",
+          "subjectTemplate": "Numed TB: Device ${deviceName} is Inactive",
+          "mailBodyType": "false",
+          "isHtmlTemplate": null,
+          "bodyTemplate": "Numed: Device ${deviceName} is Inactive"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 947,
+          "layoutY": 399
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.action.TbClearAlarmNode",
+        "name": "Clear Inactivity Alarm",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "TBEL",
+          "alarmDetailsBuildJs": "var details = {};\nif (metadata.prevAlarmDetails) {\n    details = JSON.parse(metadata.prevAlarmDetails);\n    //remove prevAlarmDetails from metadata\n    delete metadata.prevAlarmDetails;\n    //now metadata is the same as it comes IN this rule node\n}\n\n\nreturn details;",
+          "alarmDetailsBuildTbel": "var details = {};\nif (metadata.prevAlarmDetails != null) {\n    details = JSON.parse(metadata.prevAlarmDetails);\n    //remove prevAlarmDetails from metadata\n    metadata.remove('prevAlarmDetails');\n    //now metadata is the same as it comes IN this rule node\n}\n\n\nreturn details;",
+          "alarmType": "Inactivity Timeout"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 555,
+          "layoutY": 504
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.mail.TbMsgToEmailNode",
+        "name": "Activity Email",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "fromTemplate": "sqcmboard@gmail.com",
+          "toTemplate": "sqcmboard@gmail.com",
+          "ccTemplate": "",
+          "bccTemplate": "roslee@mimos.my, pannir@mimos.my, pannirk@gmail.com",
+          "subjectTemplate": "Numed TB: Device ${deviceName} is Active",
+          "mailBodyType": "false",
+          "isHtmlTemplate": null,
+          "bodyTemplate": "Numed: Device ${deviceName} is Active"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 870,
+          "layoutY": 507
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.telemetry.TbMsgTimeseriesNode",
+        "name": "Save Filtered Telemetry",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "defaultTTL": 0,
+          "skipLatestPersistence": false,
+          "useServerTs": false
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 925,
+          "layoutY": 151
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.filter.TbJsFilterNode",
+        "name": "Is Initial Attributes?",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "if(typeof msg.Init !== undefined) {\n    return msg.Init > 0;\n}\n\nreturn false;",
+          "tbelScript": "return msg.temperature > 20;"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 1041,
+          "layoutY": 41
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
+        "name": "Set Timestamp",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "var today = new Date();\nvar gmtTime = today.getTime();\nvar localOffset = (-1) * today.getTimezoneOffset() * 60000;\nvar localTime = Math.round(new Date(gmtTime+localOffset).getTime() / 1000);\n\nreturn {msg: {\"setTimestamp\": localTime}, metadata: metadata, msgType: msgType};",
+          "tbelScript": "return {msg: msg, metadata: metadata, msgType: msgType};"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 1360,
+          "layoutY": 42
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.telemetry.TbMsgAttributesNode",
+        "name": "Save Shared Attributes",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 2,
+        "configuration": {
+          "scope": "SHARED_SCOPE",
+          "notifyDevice": true,
+          "sendAttributesUpdatedNotification": false,
+          "updateAttributesOnlyOnValueChange": false
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 1674,
+          "layoutY": 44
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.action.TbLogNode",
+        "name": "Log RPC From Device",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "return '\\nIncoming message:\\n' + JSON.stringify(msg) + '\\nIncoming metadata:\\n' + JSON.stringify(metadata);",
+          "tbelScript": "return '\\nIncoming message:\\n' + JSON.stringify(msg) + '\\nIncoming metadata:\\n' + JSON.stringify(metadata);"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 784,
+          "layoutY": 280
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
+        "name": "Device RPC Request",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "if(typeof msg[\"method\"] !== 'undefined') {\n    if(msg[\"method\"] === \"getTime\") {\n        var today = new Date();\n        var gmtTime = today.getTime();\n        var localOffset = (-1)*today.getTimezoneOffset()*60000;\n        var localTime = Math.round(new Date(gmtTime+localOffset).getTime()/1000);\n        msg.method = \"setTime\";\n        msg.params = localTime;\n        msgType = \"RPC Message\";\n    }\n}\n\nreturn {msg: msg, metadata: metadata, msgType: msgType};",
+          "tbelScript": "return {msg: msg, metadata: metadata, msgType: msgType};"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 1117,
+          "layoutY": 277
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.filter.TbJsFilterNode",
+        "name": "Is RPC Message?",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "JS",
+          "jsScript": "return msgType == \"RPC Message\";",
+          "tbelScript": "return msg.temperature > 20;"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 1439,
+          "layoutY": 280
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.rpc.TbSendRPCReplyNode",
+        "name": "Device RPC Response",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "serviceIdMetaDataAttribute": "serviceId",
+          "sessionIdMetaDataAttribute": "sessionId",
+          "requestIdMetaDataAttribute": "requestId"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 1667,
+          "layoutY": 367
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.rest.TbRestApiCallNode",
+        "name": "Send to Cranes",
+        "debugMode": false,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 3,
+        "configuration": {
+          "restEndpointUrlPattern": "https://cranes.asia/api/v1/${deviceName}/telemetry",
+          "requestMethod": "POST",
+          "useSimpleClientHttpFactory": false,
+          "ignoreRequestBody": false,
+          "enableProxy": false,
+          "useSystemProxyProperties": false,
+          "proxyScheme": null,
+          "proxyHost": null,
+          "proxyPort": 0,
+          "proxyUser": null,
+          "proxyPassword": null,
+          "readTimeoutMs": 0,
+          "maxParallelRequestsCount": 0,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "credentials": {
+            "type": "anonymous"
+          },
+          "parseToPlainText": false,
+          "maxInMemoryBufferSizeInKb": 256
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 1150,
+          "layoutY": 151
+        }
+      }
+    ],
+    "connections": [
+      {
+        "fromIndex": 0,
+        "toIndex": 7,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 1,
+        "toIndex": 0,
+        "type": "Post telemetry"
+      },
+      {
+        "fromIndex": 1,
+        "toIndex": 2,
+        "type": "Post attributes"
+      },
+      {
+        "fromIndex": 1,
+        "toIndex": 3,
+        "type": "Inactivity Event"
+      },
+      {
+        "fromIndex": 1,
+        "toIndex": 5,
+        "type": "Activity Event"
+      },
+      {
+        "fromIndex": 1,
+        "toIndex": 11,
+        "type": "RPC Request from Device"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 8,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 3,
+        "toIndex": 4,
+        "type": "Created"
+      },
+      {
+        "fromIndex": 5,
+        "toIndex": 6,
+        "type": "Cleared"
+      },
+      {
+        "fromIndex": 7,
+        "toIndex": 15,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 8,
+        "toIndex": 9,
+        "type": "True"
+      },
+      {
+        "fromIndex": 9,
+        "toIndex": 10,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 11,
+        "toIndex": 12,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 12,
+        "toIndex": 13,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 13,
+        "toIndex": 14,
+        "type": "True"
+      }
+    ],
+    "ruleChainConnections": null
+  }
+}
